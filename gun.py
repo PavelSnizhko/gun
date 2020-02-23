@@ -14,8 +14,8 @@ def main():
     canvas.pack(fill=tk.BOTH, expand=1)
 
 
-class Ball():
-    def __init__(self, x, y):
+class Ball:
+    def __init__(self, x, y, vx, vy):
         """ Конструктор класса ball
 
         Args:
@@ -25,8 +25,8 @@ class Ball():
         self.x = x
         self.y = y
         self.r = 10
-        self.vx = 0
-        self.vy = 0
+        self.vx = vx
+        self.vy = vy
         self.color = choice(['blue', 'green', 'red', 'brown'])
         self.id = canvas.create_oval(
             self.x - self.r,
@@ -56,6 +56,7 @@ class Ball():
         # FIXME
         self.x += self.vx
         self.y -= self.vy
+        self.set_coords()
 
     def hittest(self, obj):
         """Функция проверяет сталкивалкивается ли данный обьект с целью, описываемой в обьекте obj.
@@ -65,16 +66,22 @@ class Ball():
         Returns:
             Возвращает True в случае столкновения мяча и цели. В противном случае возвращает False.
         """
+        flag_x_condition = (self.x + self.r) >= obj.x and (self.x - self.r) <= obj.x
+        flag_y_condition = (self.y + self.r) >= obj.y and (self.y - self.r) <= obj.y
+        if flag_x_condition and flag_y_condition:
+            return True
         # FIXME
         return False
 
 
 class Gun:
-    def __init__(self):
+    def __init__(self, balls, bullet):
         self.f2_power = 10
         self.f2_on = 0
         self.angle = 1
         self.id = canvas.create_line(20, 450, 50, 420, width=7)  # FIXME: don't know how to set it...
+        self.balls = balls
+        self.bullet = bullet
 
     def fire2_start(self, event):
         self.f2_on = 1
@@ -85,15 +92,13 @@ class Gun:
         Происходит при отпускании кнопки мыши.
         Начальные значения компонент скорости мяча vx и vy зависят от положения мыши.
         """
-        global balls, bullet
-        bullet += 1
-
+        self.bullet += 1
         self.angle = math.atan((event.y - self.y) / (event.x - self.x))
-        self.dx = self.f2_power * math.cos(self.angle)
-        self.dy = - self.f2_power * math.sin(self.angle)
-        new_ball = Ball(self.x, self.y)
+        self.dxv = self.f2_power * math.cos(self.angle)
+        self.dyv = - self.f2_power * math.sin(self.angle)
+        new_ball = Ball(self.x, self.y, self.dxv, self.dyv)
         new_ball.r += 5
-        balls += [new_ball]
+        self.balls += [new_ball]
         self.f2_on = 0
         self.f2_power = 10
 
@@ -109,7 +114,6 @@ class Gun:
         self.y = 450 + max(self.f2_power, 20) * math.sin(self.angle)
         canvas.coords(self.id, 20, 450, self.x, self.y)
 
-
     def power_up(self):
         if self.f2_on:
             if self.f2_power < 100:
@@ -119,7 +123,7 @@ class Gun:
             canvas.itemconfig(self.id, fill='black')
 
 
-class Target():
+class Target:
     def __init__(self):
         self.points = 0
         self.live = 1
@@ -144,40 +148,41 @@ class Target():
         canvas.itemconfig(self.id_points, text=self.points)
 
 
-def new_game(event=''):
-        global gun, t1, screen1, balls, bullet
-        t1 = Target()
-        screen1 = canvas.create_text(400, 300, text='', font='28')
-        g1 = Gun()
-        bullet = 0
-        balls = []
 
-        t1.new_target()
-        bullet = 0
-        balls = []
-        canvas.bind('<Button-1>', g1.fire2_start)
-        canvas.bind('<ButtonRelease-1>', g1.fire2_end)
-        canvas.bind('<Motion>', g1.targetting)
-        t1.live = 1
-        while t1.live or balls:
-            for b in balls:
+class Game:
+    def __init__(self):
+        self.target = Target()
+        self.screen1 = canvas.create_text(400, 300, text='', font='28')
+        self.gun = Gun(balls=[], bullet=0)
+
+    def move_ball(self):
+        self.target.new_target()
+        canvas.bind('<Button-1>', self.gun.fire2_start)
+        canvas.bind('<ButtonRelease-1>', self.gun.fire2_end)
+        canvas.bind('<Motion>', self.gun.targetting)
+        self.target.live = 1
+        while self.target.live:
+            print(self.gun.balls)
+            for b in self.gun.balls:
                 b.move()
-                if b.hittest(t1) and t1.live:
-                    t1.live = 0
-                    t1.hit()
+                if b.hittest(self.target) and self.target.live:
+                    self.target.live = 0
+                    self.target.hit()
                     canvas.bind('<Button-1>', '')
                     canvas.bind('<ButtonRelease-1>', '')
-                    b.move()
-                    canvas.itemconfig(screen1, text='Вы уничтожили цель за ' + str(bullet) + ' выстрелов')
+                    canvas.itemconfig(self.screen1, text='Вы уничтожили цель за ' + str(self.gun.bullet) + ' выстрелов')
+                    canvas.update()
             canvas.update()
+        #TODO: will make to pop ball from list and create wall
             time.sleep(0.03)
-            g1.targetting()
-            g1.power_up()
-        canvas.itemconfig(screen1, text='')
-        canvas.delete(gun)
-        root.after(750, new_game)
-
+            self.gun.targetting()
+            self.gun.power_up()
+        self.gun.balls.pop()
+        canvas.itemconfig(self.screen1, text='')
+        canvas.delete(self.gun)
+        root.after(750, self.move_ball)
 
 main()
-new_game()
+game = Game()
+game.move_ball()
 root.mainloop()
